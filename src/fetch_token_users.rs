@@ -1,6 +1,6 @@
 use anyhow;
 use csv::Writer;
-use std::{env, fs::File};
+use std::env;
 
 use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
 use solana_client::{
@@ -18,6 +18,7 @@ pub fn fetch_token_users(
     mint_decimals: u8,
     csv_file_path: &str,
 ) -> anyhow::Result<()> {
+    // create rpc config
     let rpc_config = RpcProgramAccountsConfig {
         filters: Some(vec![
             RpcFilterType::DataSize(165),
@@ -46,11 +47,17 @@ pub fn fetch_token_users(
     let mut filtered = response
         .into_iter()
         .map(|(pubkey, account)| {
+            // asserting data len is 40 because we had given data slice lenth 40 in account config in rpc config
             assert!(account.data.len() == 40);
+
+            // first 32 byte is owners pubkey
             let owner = Pubkey::new_from_array(account.data[0..32].try_into().unwrap());
             // println!("owner: {}", owner.to_string());
+
+            // last 8 byte is amount
             let amount = u64::from_le_bytes(account.data[32..40].try_into().unwrap());
             // println!("amount: {}", amount);
+            // converting amount to ui amount
             let amount = spl_token::amount_to_ui_amount(amount, mint_decimals);
 
             let data = TokenUserData {
@@ -60,12 +67,15 @@ pub fn fetch_token_users(
             };
             return data;
         })
+        // remove off curve accounts and accounts with 0 balance
         .filter(|data| Pubkey::is_on_curve(&data.owner) && data.amount > 0.0)
         .collect::<Vec<TokenUserData>>();
 
+    // sorting list in descending with account with greater amount at top and less amount below.
     println!("Sorting data...");
     filtered.sort_by(|a, b| b.amount.total_cmp(&a.amount));
 
+    // take first 2000 item and convert then csv writable format
     let first_2000 = filtered
         .into_iter()
         .take(2000)
@@ -77,7 +87,6 @@ pub fn fetch_token_users(
         .collect::<Vec<CsvRow>>();
 
     println!("Writing data to csv file...");
-
     let path_buf = env::current_dir()?.join("outputs").join(csv_file_path);
 
     let mut wtr = Writer::from_path(path_buf.as_path())?;

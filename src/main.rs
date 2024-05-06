@@ -6,17 +6,14 @@ use dotenv::dotenv;
 use fetch_token_users::*;
 use solana_sdk::pubkey::Pubkey;
 
-use std::{
-    env,
-    fs::{DirBuilder, File},
-    str::FromStr,
-};
+use std::{env, str::FromStr};
 
 use solana_client::rpc_client::RpcClient;
 
 fn main() -> anyhow::Result<()> {
     dotenv().ok();
 
+    // create rpc client similar to connection in web3.js sdk. require RPC_URL in .env file
     let rpc_url = env::var("RPC_URL").expect("Missing env var: 'RPC_URL'");
     let client = RpcClient::new(rpc_url);
 
