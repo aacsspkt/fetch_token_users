@@ -1,6 +1,6 @@
 use anyhow;
 use csv::Writer;
-use std::env;
+use std::{env, fs};
 
 use solana_account_decoder::{UiAccountEncoding, UiDataSliceConfig};
 use solana_client::{
@@ -16,7 +16,7 @@ pub fn fetch_token_users(
     client: &RpcClient,
     mint: Pubkey,
     mint_decimals: u8,
-    csv_file_path: &str,
+    csv_file: &str,
 ) -> anyhow::Result<()> {
     // create rpc config
     let rpc_config = RpcProgramAccountsConfig {
@@ -87,14 +87,23 @@ pub fn fetch_token_users(
         .collect::<Vec<CsvRow>>();
 
     println!("Writing data to csv file...");
-    let path_buf = env::current_dir()?.join("outputs").join(csv_file_path);
-
-    let mut wtr = Writer::from_path(path_buf.as_path())?;
-
-    for item in first_2000 {
-        wtr.serialize(item)?;
-    }
+    write_to_csv(csv_file, first_2000)?;
     println!("Written data to csv.");
 
     Ok(())
+}
+
+fn write_to_csv(csv_file: &str, list: Vec<CsvRow>) -> anyhow::Result<()> {
+    let dir_path_buf = env::current_dir()?.join("outputs");
+    if !dir_path_buf.exists() {
+        fs::create_dir(dir_path_buf.as_path())?
+    }
+    let file_path_buf = dir_path_buf.join(csv_file);
+    if !file_path_buf.exists() {
+        fs::File::create_new(file_path_buf.as_path())?;
+    }
+    let mut wtr = Writer::from_path(file_path_buf.as_path())?;
+    Ok(for item in list {
+        wtr.serialize(item)?;
+    })
 }
